@@ -4,6 +4,10 @@
 문제 풀이 시간을 재고, 시간이 끝나면 축구처럼 **추가 시간**을 줄지 **휴식**할지 고릅니다.
 푼 문제를 기록하고, 코드 리뷰 시간까지 통계로 모아 봅니다.
 
+| 타이머 | 기록 | 통계 |
+|---|---|---|
+| <img src="docs/screenshots/timer.png" width="260" alt="타이머 화면"> | <img src="docs/screenshots/history.png" width="260" alt="기록 화면"> | <img src="docs/screenshots/stats.png" width="260" alt="통계 화면"> |
+
 ## 기능
 
 - **풀이 타이머**
