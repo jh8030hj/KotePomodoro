@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+
+# Xcode 개인 설정 (창 상태, 스킴 순서 등)
+xcuserdata/
+*.xcuserstate
+
+# 빌드 결과물
+build/
+DerivedData/
+*.xcarchive
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# 개인 Team ID
+Local.xcconfig
