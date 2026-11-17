@@ -37,15 +37,17 @@
   - 카테고리별 시간, 날짜별 집중 시간 막대, 최근 26주 잔디
   - 카테고리를 누르면 자세한 통계 (유형별·회사별 시간, 결과, 별점 평균, 코테는 성공률·난이도 분포·리뷰 시간)
 - **소리 없는 알림**: 시간이 끝날 때마다 mac 알림 배너가 뜨고 Dock 아이콘이 튑니다.
+- **아이폰 알림 (선택)**: 설정 → 타이머에서 켜면, 끝나는 시각에 맞춰 '미리 알림'의 '취준 포모도로' 목록에 항목을 만듭니다. iCloud로 동기화되어 같은 Apple ID의 아이폰·애플워치에서 울리고, 일시정지·취소하면 지워집니다.
 
 ## 기술
 
-SwiftUI · SwiftData · Swift Charts · UserNotifications · App Sandbox
+SwiftUI · SwiftData · Swift Charts · UserNotifications · EventKit · App Sandbox
 
 | 파일 | 역할 |
 |---|---|
 | `TimerModel.swift` | 타이머 상태. 실제 시각(`Date`) 기준으로 계산해서 잠자기 모드 후에도 정확함 |
 | `Notifier.swift` | 끝나는 시각에 맞춰 미리 예약하는 무음 알림 |
+| `PhoneAlert.swift` | 아이폰 알림용 미리 알림 항목 만들기·지우기 (EventKit) |
 | `Models.swift` | 카테고리, 기록, 선택지, 할 일 (SwiftData) |
 | `CategoryForm.swift` | 카테고리 종류별 기록 양식과 기본 카테고리 |
 | `DataMigration.swift` | 기본값 채우기, 코테 포모도로 기록 옮기기 |
@@ -88,11 +90,3 @@ SwiftUI · SwiftData · Swift Charts · UserNotifications · App Sandbox
 기록은 앱 샌드박스 폴더 `~/Library/Containers/app.jobpomodoro.JobPomodoro/`에만 저장됩니다.
 외부로 전송되지 않습니다.
 
-### 코테 포모도로 기록 옮기기
-
-코테 포모도로를 쓰던 경우, 취준 포모도로를 한 번 설치·실행한 뒤 아래 명령으로 기록을 옮깁니다.
-두 앱의 저장소를 `~/Documents/JobPomodoro-backup-…`에 백업한 다음 복사하고, 앱을 켜면 문제 기록이 '코테' 기록으로 바뀝니다.
-
-```bash
-./scripts/migrate-from-kote.sh
-```

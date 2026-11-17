@@ -5,15 +5,16 @@ import SwiftData
 /// (코테 포모도로 저장소를 나중에 복사해 넣어도 다음 실행에서 옮겨진다)
 enum DataMigration {
     static func run(_ context: ModelContext) {
-        seedCategories(context)
-        seedLabels(context)
+        // 선택지 기본값은 카테고리를 처음 만들 때만 넣는다 (사용자가 다 지워도 되살리지 않게)
+        if seedCategories(context) { seedLabels(context) }
         migrateSolveRecords(context)
         try? context.save()
     }
 
-    private static func seedCategories(_ context: ModelContext) {
-        let existing = Set(((try? context.fetch(FetchDescriptor<TaskCategory>())) ?? []).map(\.key))
-        guard existing.isEmpty else { return }
+    /// 카테고리가 하나도 없으면 기본 카테고리를 만들고 true
+    private static func seedCategories(_ context: ModelContext) -> Bool {
+        let count = (try? context.fetchCount(FetchDescriptor<TaskCategory>())) ?? 0
+        guard count == 0 else { return false }
         for (index, item) in DefaultCategory.all.enumerated() {
             context.insert(TaskCategory(
                 key: item.kind.rawValue, name: item.name, kind: item.kind, symbol: item.symbol,
@@ -21,9 +22,10 @@ enum DataMigration {
                 weeklyGoalMinutes: item.weeklyGoalHours * 60
             ))
         }
+        return true
     }
 
-    /// 기본 카테고리마다 선택지 목록이 비어 있으면 기본값으로 채운다
+    /// 기본 카테고리마다 기본 선택지를 넣는다
     private static func seedLabels(_ context: ModelContext) {
         let labels = (try? context.fetch(FetchDescriptor<SessionLabel>())) ?? []
         let keysWithLabels = Set(labels.map(\.categoryKey))

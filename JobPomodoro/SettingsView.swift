@@ -218,12 +218,59 @@ private struct TimerSettings: View {
                     }
                 }
             } footer: {
-                Text("바꾼 시간은 다음 타이머부터 적용돼요. 알림은 소리 없이 표시돼요.")
+                Text("바꾼 시간은 다음 타이머부터 적용돼요. mac 알림은 소리 없이 표시돼요.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            PhoneAlertSection()
         }
         .formStyle(.grouped)
+    }
+}
+
+/// 아이폰 알림 켜기/끄기 (미리 알림 이용)
+private struct PhoneAlertSection: View {
+    @AppStorage(PhoneAlert.enabledKey) private var enabled = false
+    @State private var denied = PhoneAlert.isDenied
+
+    var body: some View {
+        Section {
+            Toggle("아이폰에도 알림 보내기", isOn: Binding(
+                get: { enabled },
+                set: { newValue in
+                    if newValue {
+                        Task {
+                            let granted = await PhoneAlert.requestAccess()
+                            enabled = granted
+                            denied = !granted
+                        }
+                    } else {
+                        PhoneAlert.cancel()
+                        enabled = false
+                    }
+                }
+            ))
+            if denied {
+                HStack {
+                    Text("미리 알림 접근이 꺼져 있어요.")
+                        .foregroundStyle(.orange)
+                    Spacer()
+                    Button("시스템 설정 열기") { PhoneAlert.openPrivacySettings() }
+                }
+                .font(.callout)
+            }
+        } header: {
+            Text("아이폰 알림")
+        } footer: {
+            Text("""
+            타이머가 끝나는 시각에 맞춰 '미리 알림'의 '\(PhoneAlert.listTitle)' 목록에 항목을 만들어요. \
+            iCloud로 동기화되어 같은 Apple ID의 아이폰·애플워치에서 울리고, 일시정지·취소하면 지워져요. \
+            아이폰 소리는 아이폰 설정 → 알림 → 미리 알림에서 정해요.
+            """)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
     }
 }
 

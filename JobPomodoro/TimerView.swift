@@ -17,7 +17,7 @@ struct TimerView: View {
     /// 타이머 전: 고른 카테고리 / 타이머 중: 재고 있는 카테고리
     private var category: TaskCategory? {
         if let key = timer.categoryKey { return categories.category(key) }
-        return categories.category(appState.selectedCategoryKey) ?? categories.active.first
+        return categories.active.category(appState.selectedCategoryKey) ?? categories.active.first
     }
 
     private var form: CategoryForm { category?.form ?? CategoryKind.custom.form }

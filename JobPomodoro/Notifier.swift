@@ -24,6 +24,7 @@ enum Notifier {
 
     static func setup() {
         UNUserNotificationCenter.current().delegate = delegate
+        PhoneAlert.cleanUpPast()
     }
 
     /// 알림 권한을 요청한다 (처음 한 번은 허용 창이 뜬다). .sound 권한은 요청하지 않는다.
@@ -86,10 +87,14 @@ enum Notifier {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [endID])
         center.add(request)
+
+        // 켜 두면 아이폰에도 (미리 알림으로) 같은 시각에 울린다
+        PhoneAlert.schedule(title: title, body: body, at: Date.now.addingTimeInterval(max(seconds, 1)))
     }
 
     static func cancelScheduled() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [endID])
+        PhoneAlert.cancel()
     }
 
     /// 시간이 끝났을 때 Dock 아이콘을 튀게 하고 앱을 앞으로 가져온다 (소리 없음)
