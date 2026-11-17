@@ -7,19 +7,10 @@ enum TimerPhase: Equatable {
     case rest
 }
 
-enum SettingsKey {
-    static let focusMinutes = "focusMinutes"
-    static let restMinutes = "restMinutes"
-
-    static func registerDefaults() {
-        UserDefaults.standard.register(defaults: [focusMinutes: 40, restMinutes: 10])
-    }
-}
-
 /// 타이머 상태. 남은 시간은 실제 시각(Date) 기준으로 계산하므로 맥이 잠자기에 들어가도 정확하다.
 ///
 /// 축구처럼 동작한다: 푸는 시간이 끝나면 멈추고, 추가 시간을 줄지 휴식할지 고른다.
-/// 추가 시간이 끝나도 다시 고른다.
+/// 추가 시간이 끝나도 다시 고른다. 운동처럼 끝나는 시간이 없는 카테고리는 스톱워치로 잰다.
 @Observable
 final class TimerModel {
     private(set) var phase: TimerPhase = .idle
@@ -28,6 +19,12 @@ final class TimerModel {
     private(set) var now = Date()
     /// 지금까지 준 추가 시간 합계 (푸는 중일 때만)
     private(set) var extraTime: TimeInterval = 0
+    /// 스톱워치로 재는 중인지 (끝나는 시간 없음)
+    private(set) var isStopwatch = false
+    /// 지금 재고 있는 카테고리·할 일 (기록할 때 쓴다)
+    private(set) var categoryKey: String?
+    private(set) var categoryName = ""
+    private(set) var todoID: UUID?
     /// 앱 화면 위에 띄울 안내 문구
     var alertMessage: String?
     /// 메인 창을 다시 열거나 앞으로 가져오는 동작 (ContentView가 설정)
@@ -61,23 +58,42 @@ final class TimerModel {
     var isInExtraTime: Bool { phase == .focus && extraTime > 0 }
 
     var progress: Double {
+        // 스톱워치는 1분마다 한 바퀴
+        if isStopwatch { return elapsed.truncatingRemainder(dividingBy: 60) / 60 }
         guard phaseLength > 0 else { return 0 }
         return min(max(elapsed / phaseLength, 0), 1)
     }
 
-    /// 휴식 중인데 돌아갈 문제가 있으면, 그 문제를 푼 시간
+    /// 휴식 중인데 돌아갈 일이 있으면, 그 일에 쓴 시간
     var suspendedElapsed: TimeInterval? { suspended?.accumulated }
 
     // MARK: - 사용자 동작
 
-    func startFocus() {
+    /// 카테고리의 집중 타이머 시작
+    func startFocus(categoryKey: String, categoryName: String, minutes: Int, todoID: UUID?) {
         suspended = nil
-        begin(.focus, minutes: UserDefaults.standard.integer(forKey: SettingsKey.focusMinutes))
+        setActive(categoryKey: categoryKey, categoryName: categoryName, todoID: todoID)
+        begin(.focus, minutes: minutes)
     }
 
-    func startRest() {
+    /// 끝나는 시간 없이 재는 스톱워치 시작 (운동)
+    func startStopwatch(categoryKey: String, categoryName: String, todoID: UUID?) {
         suspended = nil
-        begin(.rest, minutes: UserDefaults.standard.integer(forKey: SettingsKey.restMinutes))
+        setActive(categoryKey: categoryKey, categoryName: categoryName, todoID: todoID)
+        pause()
+        phase = .focus
+        phaseLength = 0
+        accumulated = 0
+        extraTime = 0
+        isStopwatch = true
+        alertMessage = nil
+        resume()
+    }
+
+    func startRest(minutes: Int) {
+        suspended = nil
+        setActive(categoryKey: nil, categoryName: "", todoID: nil)
+        begin(.rest, minutes: minutes)
     }
 
     /// 시간이 끝났을 때 추가 시간 주기
@@ -91,11 +107,11 @@ final class TimerModel {
     }
 
     /// 시간이 끝났을 때 휴식하기. 푼 시간은 보관되고, 휴식 후 돌아와 다시 고를 수 있다.
-    func takeBreak() {
-        guard phase == .focus else { return }
+    func takeBreak(minutes: Int) {
+        guard phase == .focus, !isStopwatch else { return }
         pause()
         suspended = SuspendedFocus(accumulated: accumulated, phaseLength: phaseLength, extraTime: extraTime)
-        begin(.rest, minutes: UserDefaults.standard.integer(forKey: SettingsKey.restMinutes))
+        begin(.rest, minutes: minutes)
     }
 
     /// 휴식을 끝내고 풀던 문제로 돌아가기
@@ -112,7 +128,7 @@ final class TimerModel {
     }
 
     func resume() {
-        guard phase != .idle, !isRunning, elapsed < phaseLength else { return }
+        guard phase != .idle, !isRunning, isStopwatch || elapsed < phaseLength else { return }
         now = Date()
         segmentStart = now
         isRunning = true
@@ -125,6 +141,7 @@ final class TimerModel {
         clear()
         suspended = nil
         alertMessage = nil
+        setActive(categoryKey: nil, categoryName: "", todoID: nil)
     }
 
     // MARK: - 내부
@@ -135,6 +152,7 @@ final class TimerModel {
         phaseLength = TimeInterval(max(minutes, 1) * 60)
         accumulated = 0
         extraTime = 0
+        isStopwatch = false
         alertMessage = nil
         resume()
     }
@@ -144,6 +162,13 @@ final class TimerModel {
         accumulated = 0
         phaseLength = 0
         extraTime = 0
+        isStopwatch = false
+    }
+
+    private func setActive(categoryKey: String?, categoryName: String, todoID: UUID?) {
+        self.categoryKey = categoryKey
+        self.categoryName = categoryName
+        self.todoID = todoID
     }
 
     @discardableResult
@@ -161,13 +186,13 @@ final class TimerModel {
 
     /// 끝나는 시각에 맞춰 mac 알림을 미리 예약한다. 앱이 뒤에 있어도 제시간에 뜬다.
     private func scheduleEndNotification() {
-        guard remaining > 0 else { return }
+        guard !isStopwatch, remaining > 0 else { return }
         switch phase {
         case .focus:
-            let title = extraTime > 0 ? "⏰ 추가 시간 종료" : "⏰ 풀이 시간 종료"
+            let title = extraTime > 0 ? "⏰ \(categoryName) 추가 시간 종료" : "⏰ \(categoryName) 시간 종료"
             Notifier.schedule(title: title, body: "추가 시간을 줄지, 휴식할지 골라 주세요.", after: remaining)
         case .rest:
-            let body = suspended == nil ? "다음 문제를 시작해 볼까요?" : "풀던 문제로 돌아갈 시간이에요."
+            let body = suspended == nil ? "다음 일을 시작해 볼까요?" : "하던 일로 돌아갈 시간이에요."
             Notifier.schedule(title: "☕️ 휴식 끝", body: body, after: remaining)
         case .idle:
             break
@@ -209,7 +234,7 @@ final class TimerModel {
 
     private func tick() {
         now = Date()
-        guard isRunning, elapsed >= phaseLength else { return }
+        guard isRunning, !isStopwatch, elapsed >= phaseLength else { return }
 
         // mac 알림은 이미 예약돼 있으므로 여기서는 타이머를 멈추고 앱 안 표시만 처리한다
         stopTicking()
@@ -220,10 +245,10 @@ final class TimerModel {
             alertMessage = nil  // 타이머 화면에 선택 패널이 뜬다
         case .rest:
             if restoreSuspended() {
-                alertMessage = "휴식이 끝났어요. 추가 시간을 주고 이어서 풀어 보세요."
+                alertMessage = "휴식이 끝났어요. 추가 시간을 주고 이어서 해 보세요."
             } else {
                 clear()
-                alertMessage = "휴식이 끝났어요. 다음 문제를 시작해 볼까요?"
+                alertMessage = "휴식이 끝났어요. 다음 일을 시작해 볼까요?"
             }
         case .idle:
             return

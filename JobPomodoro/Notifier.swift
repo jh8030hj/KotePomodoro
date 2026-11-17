@@ -20,7 +20,7 @@ enum Notifier {
     private static let delegate = NotificationDelegate()
     private static let endID = "phase-end"
 
-    private static let log = Logger(subsystem: "KotePomodoro", category: "notification")
+    private static let log = Logger(subsystem: "JobPomodoro", category: "notification")
 
     static func setup() {
         UNUserNotificationCenter.current().delegate = delegate

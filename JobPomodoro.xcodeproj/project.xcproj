@@ -11,20 +11,20 @@
     ],
   },
   "files": [
-    { "kind": "folder", "path": "KotePomodoro", "target-membership": [ "KotePomodoro" ] },
+    { "kind": "folder", "path": "JobPomodoro", "target-membership": [ "JobPomodoro" ] },
     {
       "kind": "group",
       "name": "Products",
       "children": [
-        { "path": "<PRODUCTS>/KotePomodoro.app", "id": "000000000000000000000120", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/JobPomodoro.app", "id": "000000000000000000000120", "type": "wrapper.application", "index": false },
       ],
     },
   ],
   "targets": [
     {
-      "name": "KotePomodoro",
+      "name": "JobPomodoro",
       "id": "000000000000000100000000",
-      "product": "Products/KotePomodoro.app",
+      "product": "Products/JobPomodoro.app",
       "product-type": "application",
       "build-phases": [
         "compile-sources",
@@ -38,6 +38,7 @@
         "ENABLE_PREVIEWS": "YES",
         "ENABLE_USER_SELECTED_FILES": "readonly",
         "GENERATE_INFOPLIST_FILE": "YES",
+        "INFOPLIST_KEY_CFBundleDisplayName": "취준 포모도로",
         "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]": "YES",
         "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]": "YES",
         "INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]": "YES",
@@ -51,7 +52,7 @@
         "LD_RUNPATH_SEARCH_PATHS": "@executable_path/Frameworks",
         "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": "@executable_path/../Frameworks",
         "MARKETING_VERSION": "1.0",
-        "PRODUCT_BUNDLE_IDENTIFIER": "app.kotepomodoro.KotePomodoro",
+        "PRODUCT_BUNDLE_IDENTIFIER": "app.jobpomodoro.JobPomodoro",
         "PRODUCT_NAME": "$(TARGET_NAME)",
         "REGISTER_APP_GROUPS": "YES",
         "SDKROOT": "auto",
