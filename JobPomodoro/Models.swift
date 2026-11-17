@@ -70,7 +70,9 @@ final class TaskCategory {
     var focusMinutes: Int
     var restMinutes: Int
     var weeklyGoalMinutes: Int = 0
+    /// 오늘 목표(분). dailyGoalDate가 오늘일 때만 유효하고, 다음 날엔 0으로 본다
     var dailyGoalMinutes: Int = 0
+    var dailyGoalDate: Date?
     var isArchived: Bool = false
 
     init(key: String, name: String, kind: CategoryKind, symbol: String, colorName: String, order: Int,
@@ -84,6 +86,18 @@ final class TaskCategory {
         self.focusMinutes = focusMinutes
         self.restMinutes = restMinutes
         self.weeklyGoalMinutes = weeklyGoalMinutes
+    }
+
+    /// 오늘 목표(분). 다른 날 정한 값은 무시한다
+    var todayGoalMinutes: Int {
+        get {
+            guard let date = dailyGoalDate, Calendar.current.isDateInToday(date) else { return 0 }
+            return dailyGoalMinutes
+        }
+        set {
+            dailyGoalMinutes = newValue
+            dailyGoalDate = .now
+        }
     }
 
     var kind: CategoryKind { CategoryKind(rawValue: kindRaw) ?? .custom }

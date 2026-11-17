@@ -15,6 +15,9 @@ struct ContentView: View {
             Tab("할 일", systemImage: "checklist", value: AppTab.todo) {
                 TodoView()
             }
+            Tab("목표", systemImage: "target", value: AppTab.goals) {
+                GoalView()
+            }
             Tab("기록", systemImage: "list.bullet", value: AppTab.history) {
                 HistoryView()
             }

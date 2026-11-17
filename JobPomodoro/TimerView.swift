@@ -89,7 +89,7 @@ struct TimerView: View {
                     Image(systemName: "gearshape")
                 }
                 .buttonStyle(.borderless)
-                .help("목표·카테고리·타이머 설정")
+                .help("카테고리·타이머 설정")
             }
 
             if notificationsBlocked {
@@ -167,35 +167,39 @@ struct TimerView: View {
     private var categoryPicker: some View {
         @Bindable var appState = appState
         let todos = openTodos.filter { $0.categoryKey == category?.key }
-        return VStack(alignment: .leading, spacing: 8) {
-            FlowLayout(spacing: 6) {
-                ForEach(categories.active) { item in
-                    Button {
-                        appState.selectedCategoryKey = item.key
-                        appState.selectedTodoID = nil
-                    } label: {
-                        Label(item.name, systemImage: item.symbol)
-                            .font(.callout)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 5)
-                            .background(Capsule().fill(item.key == category?.key ? item.color : Color.secondary.opacity(0.12)))
-                            .foregroundStyle(item.key == category?.key ? Color.white : Color.primary)
-                            .contentShape(Capsule())
+        let categoryBinding = Binding<String>(
+            get: { category?.key ?? appState.selectedCategoryKey },
+            set: {
+                appState.selectedCategoryKey = $0
+                appState.selectedTodoID = nil
+            }
+        )
+        return Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
+            GridRow {
+                Text("카테고리").foregroundStyle(.secondary)
+                Picker("카테고리", selection: categoryBinding) {
+                    ForEach(categories.active) { item in
+                        Label(item.name, systemImage: item.symbol).tag(item.key)
                     }
-                    .buttonStyle(.plain)
                 }
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             if !todos.isEmpty {
-                Picker(selection: $appState.selectedTodoID) {
-                    Text("할 일 선택 안 함").tag(UUID?.none)
-                    ForEach(todos) { todo in
-                        Text(todo.title).tag(Optional(todo.uid))
+                GridRow {
+                    Text("할 일").foregroundStyle(.secondary)
+                    Picker("할 일", selection: $appState.selectedTodoID) {
+                        Text("선택 안 함").tag(UUID?.none)
+                        ForEach(todos) { todo in
+                            Text(todo.title).tag(Optional(todo.uid))
+                        }
                     }
-                } label: {
-                    Image(systemName: "checklist")
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
+        .font(.callout)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -215,7 +219,7 @@ struct TimerView: View {
 
     private var todaySummary: some View {
         let totals = todayTotals
-        let goal = TimeInterval((category?.dailyGoalMinutes ?? 0) * 60)
+        let goal = TimeInterval((category?.todayGoalMinutes ?? 0) * 60)
         return HStack(spacing: 6) {
             Text("오늘 " + durationString(totals.all))
             if let category {
@@ -295,12 +299,31 @@ struct TimerView: View {
         case .focus:
             VStack(spacing: 10) {
                 finishButtons
-                HStack(spacing: 10) {
-                    pauseButton
-                    Button {
+                if !timer.isRunning && !timer.isStopwatch {
+                    // 일시정지 중: 이어서 하거나, 바로 휴식으로 넘어가기
+                    HStack(spacing: 10) {
+                        pauseButton
+                        Button {
+                            timer.takeBreak(minutes: restMinutes)
+                        } label: {
+                            Label("휴식하기 (\(restMinutes)분)", systemImage: "cup.and.saucer").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                    }
+                    Button("기록 없이 그만두기") {
                         timer.reset()
-                    } label: {
-                        Text("기록 없이 그만두기").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                } else {
+                    HStack(spacing: 10) {
+                        pauseButton
+                        Button {
+                            timer.reset()
+                        } label: {
+                            Text("기록 없이 그만두기").frame(maxWidth: .infinity)
+                        }
                     }
                 }
             }
@@ -422,13 +445,7 @@ struct TimerView: View {
 
     private func start() {
         guard let category else { return }
-        let todoID = appState.selectedTodoID
-        if category.form.timerMode == .stopwatch {
-            timer.startStopwatch(categoryKey: category.key, categoryName: category.name, todoID: todoID)
-        } else {
-            timer.startFocus(categoryKey: category.key, categoryName: category.name,
-                             minutes: category.focusMinutes, todoID: todoID)
-        }
+        timer.start(category, todoID: appState.selectedTodoID)
     }
 
     private func addCustomExtra() {
@@ -442,6 +459,28 @@ struct TimerView: View {
         timer.pause()
         timer.alertMessage = nil
         pending = SessionDraft(categoryKey: key, duration: timer.elapsed, outcome: outcome, todoID: timer.todoID)
+    }
+}
+
+extension TimerModel {
+    /// 카테고리 방식에 맞춰 포모도로 또는 스톱워치 시작
+    func start(_ category: TaskCategory, todoID: UUID?) {
+        if category.form.timerMode == .stopwatch {
+            startStopwatch(categoryKey: category.key, categoryName: category.name, todoID: todoID)
+        } else {
+            startFocus(categoryKey: category.key, categoryName: category.name,
+                       minutes: category.focusMinutes, todoID: todoID)
+        }
+    }
+
+    /// 지금 상태를 사람이 읽을 수 있게 (할 일 탭 안내용)
+    var statusText: String {
+        switch phase {
+        case .idle: "대기 중"
+        case .rest: "휴식 중"
+        case .focus where isTimeUp: "\(categoryName) 시간이 끝나 다음 선택을 기다리는 중"
+        case .focus: isRunning ? "\(categoryName) 타이머가 진행 중" : "\(categoryName) 타이머가 일시정지된 상태"
+        }
     }
 }
 

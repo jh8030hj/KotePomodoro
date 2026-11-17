@@ -17,6 +17,8 @@ struct TodoView: View {
     @State private var filterKey: String?
     @State private var showDone = false
     @State private var editing: TodoItem?
+    /// 타이머가 이미 진행 중일 때 '시작'을 누른 할 일
+    @State private var busyStart: TodoItem?
 
     private let calendar = Calendar.current
 
@@ -52,18 +54,22 @@ struct TodoView: View {
     var body: some View {
         VStack(spacing: 0) {
             addBar
-                .padding(12)
+                .padding([.horizontal, .top], 12)
+            listHeader
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            Divider()
 
             if filtered.isEmpty {
                 ContentUnavailableView(
                     todos.isEmpty ? "할 일이 없어요" : "이 카테고리에는 할 일이 없어요",
                     systemImage: "checklist",
-                    description: Text("위에서 할 일을 추가하고, ▶를 눌러 바로 타이머를 시작해 보세요.")
+                    description: Text("위에서 할 일을 추가하고, '시작'을 눌러 바로 타이머를 시작해 보세요.")
                 )
             } else {
                 let spent = spent
                 List {
-                    Section("할 일 \(open.count)") {
+                    Section("해야 할 일") {
                         ForEach(open) { todo in
                             row(todo, spent: spent[todo.uid] ?? 0)
                         }
@@ -83,38 +89,77 @@ struct TodoView: View {
         .sheet(item: $editing) { todo in
             TodoEditSheet(todo: todo)
         }
+        .confirmationDialog(
+            "타이머가 이미 쓰이고 있어요",
+            isPresented: Binding(get: { busyStart != nil }, set: { if !$0 { busyStart = nil } }),
+            presenting: busyStart
+        ) { todo in
+            Button("진행 중인 타이머 보기") {
+                appState.tab = .timer
+                busyStart = nil
+            }
+            Button("그만두고 이 할 일 시작", role: .destructive) {
+                timer.reset()
+                startTimer(for: todo)
+                busyStart = nil
+            }
+            Button("취소", role: .cancel) { busyStart = nil }
+        } message: { todo in
+            Text("지금 \(timer.statusText)이에요. 그만두면 진행 중인 시간은 기록되지 않아요.")
+        }
     }
 
+    /// 위: 새 할 일 추가 칸 (상자로 묶음)
     private var addBar: some View {
         let selectedKey = newCategoryKey ?? appState.selectedCategoryKey
-        return VStack(spacing: 8) {
-            HStack {
-                TextField("할 일 추가 (예: 카카오 자소서 2번 문항)", text: $newTitle)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(add)
-                Button("추가", action: add)
-                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+        return GroupBox {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    TextField("할 일 내용 (예: 카카오 자소서 2번 문항)", text: $newTitle)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(add)
+                    Button("추가", action: add)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                HStack(spacing: 8) {
+                    Text("카테고리").foregroundStyle(.secondary)
+                    Picker("카테고리", selection: Binding(get: { selectedKey }, set: { newCategoryKey = $0 })) {
+                        ForEach(categories.active) { Label($0.name, systemImage: $0.symbol).tag($0.key) }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    Spacer(minLength: 12)
+                    Toggle("마감일 정하기", isOn: $newHasDue)
+                        .toggleStyle(.checkbox)
+                    if newHasDue {
+                        DatePicker("마감일", selection: $newDue, displayedComponents: .date)
+                            .labelsHidden()
+                    }
+                }
+                .font(.callout)
             }
-            HStack(spacing: 8) {
-                Picker("카테고리", selection: Binding(get: { selectedKey }, set: { newCategoryKey = $0 })) {
-                    ForEach(categories.active) { Label($0.name, systemImage: $0.symbol).tag($0.key) }
-                }
-                .labelsHidden()
-                .fixedSize()
-                Toggle("마감", isOn: $newHasDue)
-                if newHasDue {
-                    DatePicker("마감", selection: $newDue, displayedComponents: .date)
-                        .labelsHidden()
-                }
-                Spacer(minLength: 0)
-                Picker("보기", selection: $filterKey) {
-                    Text("전체").tag(String?.none)
-                    ForEach(categories.active) { Text($0.name).tag(Optional($0.key)) }
-                }
-                .labelsHidden()
-                .fixedSize()
+            .padding(4)
+        } label: {
+            Label("새 할 일", systemImage: "plus.circle")
+        }
+    }
+
+    /// 목록 위: 어떤 카테고리의 할 일을 볼지
+    private var listHeader: some View {
+        HStack(spacing: 8) {
+            Text("목록").font(.headline)
+            Text("남은 \(open.count) · 완료 \(done.count)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text("보기").font(.callout).foregroundStyle(.secondary)
+            Picker("보기", selection: $filterKey) {
+                Text("모든 카테고리").tag(String?.none)
+                ForEach(categories.active) { Label($0.name, systemImage: $0.symbol).tag(Optional($0.key)) }
             }
-            .font(.callout)
+            .labelsHidden()
+            .fixedSize()
         }
     }
 
@@ -143,7 +188,7 @@ struct TodoView: View {
                         dueText(due)
                     }
                     if spent > 0 {
-                        Label(durationString(spent), systemImage: "clock")
+                        Text("쓴 시간 " + durationString(spent))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -156,12 +201,11 @@ struct TodoView: View {
                 Button {
                     startTimer(for: todo)
                 } label: {
-                    Image(systemName: "play.fill")
+                    Label("시작", systemImage: "play.fill")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(timer.phase != .idle)
-                .help(timer.phase == .idle ? "이 할 일로 타이머 준비" : "타이머가 이미 돌고 있어요")
+                .help("이 할 일로 타이머 시작")
             }
         }
         .padding(.vertical, 3)
@@ -172,14 +216,15 @@ struct TodoView: View {
         }
     }
 
-    /// D-3, 오늘, 3일 지남
+    /// 마감 D-3 (11월 20일), 오늘 마감, 3일 지남
     private func dueText(_ due: Date) -> some View {
         let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: .now), to: calendar.startOfDay(for: due)).day ?? 0
-        let text = days == 0 ? "오늘 마감" : days > 0 ? "D-\(days)" : "\(-days)일 지남"
+        let when = days == 0 ? "오늘 마감" : days > 0 ? "마감 D-\(days)" : "마감 \(-days)일 지남"
         let color: Color = days < 0 ? .red : days <= 2 ? .orange : .secondary
-        return Label(text, systemImage: "calendar")
+        return Text("\(when) (\(due.formatted(.dateTime.month().day())))")
             .font(.caption.weight(days <= 2 ? .semibold : .regular))
             .foregroundStyle(color)
+            .help("마감일")
     }
 
     private func add() {
@@ -190,10 +235,17 @@ struct TodoView: View {
         newTitle = ""
     }
 
-    /// 타이머 탭으로 가서 이 할 일과 카테고리를 골라 둔다
+    /// 이 할 일로 바로 타이머를 시작하고 타이머 탭으로 간다. 타이머가 쓰이고 있으면 먼저 묻는다
     private func startTimer(for todo: TodoItem) {
+        guard timer.phase == .idle else {
+            busyStart = todo
+            return
+        }
         appState.selectedCategoryKey = todo.categoryKey
         appState.selectedTodoID = todo.uid
+        if let category = categories.category(todo.categoryKey) {
+            timer.start(category, todoID: todo.uid)
+        }
         appState.tab = .timer
     }
 }

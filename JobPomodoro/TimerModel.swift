@@ -245,7 +245,9 @@ final class TimerModel {
             alertMessage = nil  // 타이머 화면에 선택 패널이 뜬다
         case .rest:
             if restoreSuspended() {
-                alertMessage = "휴식이 끝났어요. 추가 시간을 주고 이어서 해 보세요."
+                alertMessage = isTimeUp
+                    ? "휴식이 끝났어요. 추가 시간을 주고 이어서 해 보세요."
+                    : "휴식이 끝났어요. '계속'을 눌러 이어서 해 보세요."
             } else {
                 clear()
                 alertMessage = "휴식이 끝났어요. 다음 일을 시작해 볼까요?"

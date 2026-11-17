@@ -18,18 +18,11 @@ enum StatsPeriod: String, CaseIterable, Identifiable {
     }
 }
 
-enum GoalScope: String, CaseIterable, Identifiable {
-    case today = "오늘"
-    case week = "이번 주"
-    var id: Self { self }
-}
-
 struct StatsView: View {
     @Query private var sessions: [WorkSession]
     @Query(sort: \TaskCategory.order) private var categories: [TaskCategory]
     @Query private var todos: [TodoItem]
     @State private var period: StatsPeriod = .week
-    @State private var goalScope: GoalScope = .week
     @State private var selectedDay: Date?
 
     private let calendar = Calendar.current
@@ -74,30 +67,7 @@ struct StatsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("오늘 \(durationString(todayTime)) 집중했어요")
-                            .font(.title3.bold())
-                        Picker("기간", selection: $period) {
-                            ForEach(StatsPeriod.allCases) { Text($0.rawValue).tag($0) }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                    }
-
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                        StatCard(title: "집중 시간", value: durationString(totalTime))
-                        StatCard(title: "연속 (하루 30분+)", value: "\(streak)일")
-                        StatCard(title: "끝낸 할 일", value: "\(doneTodos)개")
-                    }
-
-                    goalSection
-                    categorySection
-                    dailySection
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("잔디 (최근 26주, 하루 집중 시간)").font(.headline)
-                        HeatmapView(sessions: sessions)
-                    }
+                    recordStats
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 18)
@@ -110,47 +80,30 @@ struct StatsView: View {
         }
     }
 
-    // MARK: - 목표
-
-    private var goalSection: some View {
-        let goals = categories.active.filter { goalScope == .week ? $0.weeklyGoalMinutes > 0 : $0.dailyGoalMinutes > 0 }
-        let scoped = sessions.filter {
-            goalScope == .week
-                ? calendar.isDate($0.date, equalTo: .now, toGranularity: .weekOfYear)
-                : calendar.isDateInToday($0.date)
+    @ViewBuilder
+    private var recordStats: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("오늘 \(durationString(todayTime)) 집중했어요")
+                .font(.title3.bold())
+            Picker("기간", selection: $period) {
+                ForEach(StatsPeriod.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
         }
-        let times = Dictionary(grouping: scoped, by: \.categoryKey).mapValues { $0.map(\.duration).reduce(0, +) }
 
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("목표 달성").font(.headline)
-                Spacer()
-                Picker("목표 기간", selection: $goalScope) {
-                    ForEach(GoalScope.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-            }
-            if goals.isEmpty {
-                HStack {
-                    Text("\(goalScope.rawValue) 목표가 없어요.")
-                    SettingsLink { Text("설정에서 목표 정하기") }
-                        .buttonStyle(.link)
-                }
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            } else {
-                let totalGoal = goals.map { TimeInterval((goalScope == .week ? $0.weeklyGoalMinutes : $0.dailyGoalMinutes) * 60) }.reduce(0, +)
-                let totalDone = goals.map { min(times[$0.key] ?? 0, TimeInterval((goalScope == .week ? $0.weeklyGoalMinutes : $0.dailyGoalMinutes) * 60)) }.reduce(0, +)
-                ForEach(goals) { category in
-                    let goal = TimeInterval((goalScope == .week ? category.weeklyGoalMinutes : category.dailyGoalMinutes) * 60)
-                    GoalRow(category: category, done: times[category.key] ?? 0, goal: goal)
-                }
-                Text("전체 \(Int((totalDone / max(totalGoal, 1) * 100).rounded()))% 달성")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+            StatCard(title: "집중 시간", value: durationString(totalTime))
+            StatCard(title: "연속 (하루 30분+)", value: "\(streak)일")
+            StatCard(title: "끝낸 할 일", value: "\(doneTodos)개")
+        }
+
+        categorySection
+        dailySection
+
+        VStack(alignment: .leading, spacing: 8) {
+            Text("잔디 (최근 26주, 하루 집중 시간)").font(.headline)
+            HeatmapView(sessions: sessions)
         }
     }
 
@@ -305,30 +258,6 @@ struct StatsView: View {
         Text("이 기간에는 기록이 없어요.")
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, minHeight: 60)
-    }
-}
-
-private struct GoalRow: View {
-    let category: TaskCategory
-    let done: TimeInterval
-    let goal: TimeInterval
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                CategoryBadge(category: category, font: .callout)
-                Spacer()
-                Text("\(durationString(done)) / \(durationString(goal))")
-                    .font(.callout)
-                    .monospacedDigit()
-                if done >= goal {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                        .help("목표 달성")
-                }
-            }
-            ProgressView(value: min(done / max(goal, 1), 1))
-                .tint(category.color)
-        }
     }
 }
 

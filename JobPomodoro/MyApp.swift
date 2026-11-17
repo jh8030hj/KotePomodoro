@@ -42,7 +42,7 @@ struct MyApp: App {
 }
 
 enum AppTab: Hashable {
-    case timer, todo, history, stats
+    case timer, todo, goals, history, stats
 }
 
 /// 탭 사이에서 공유하는 화면 상태 (할 일에서 ▶를 누르면 타이머 탭으로 넘어가는 등)

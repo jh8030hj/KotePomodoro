@@ -5,81 +5,10 @@ import SwiftData
 struct SettingsView: View {
     var body: some View {
         TabView {
-            Tab("목표", systemImage: "target") { GoalSettings() }
             Tab("카테고리", systemImage: "square.grid.2x2") { CategorySettings() }
             Tab("타이머", systemImage: "timer") { TimerSettings() }
         }
         .frame(width: 500, height: 520)
-    }
-}
-
-// MARK: - 목표
-
-private struct GoalSettings: View {
-    @Query(sort: \TaskCategory.order) private var categories: [TaskCategory]
-
-    var body: some View {
-        let active = categories.active
-        Form {
-            Section {
-                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
-                    GridRow {
-                        Text("카테고리").foregroundStyle(.secondary)
-                        Text("주간 목표").foregroundStyle(.secondary)
-                        Text("일간 목표").foregroundStyle(.secondary)
-                    }
-                    .font(.caption)
-                    ForEach(active) { category in
-                        @Bindable var category = category
-                        GridRow {
-                            CategoryBadge(category: category, font: .body)
-                            HoursField(title: "\(category.name) 주간 목표", minutes: $category.weeklyGoalMinutes, maxHours: 80)
-                            HoursField(title: "\(category.name) 일간 목표", minutes: $category.dailyGoalMinutes, maxHours: 16)
-                        }
-                    }
-                    Divider().gridCellUnsizedAxes(.horizontal)
-                    GridRow {
-                        Text("합계").bold()
-                        Text(durationString(TimeInterval(active.map(\.weeklyGoalMinutes).reduce(0, +) * 60)))
-                            .monospacedDigit()
-                        Text(durationString(TimeInterval(active.map(\.dailyGoalMinutes).reduce(0, +) * 60)))
-                            .monospacedDigit()
-                    }
-                }
-            } footer: {
-                Text("0이면 목표가 없어요. 통계 탭의 목표 달성 막대와 타이머 화면의 오늘 진행률이 이 값을 써요.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-/// 시간 단위(0.5시간 간격)로 입력하고 분으로 저장하는 칸
-private struct HoursField: View {
-    let title: String
-    @Binding var minutes: Int
-    let maxHours: Double
-
-    private var hours: Binding<Double> {
-        Binding(
-            get: { Double(minutes) / 60 },
-            set: { minutes = Int((min(max($0, 0), maxHours) * 60).rounded()) }
-        )
-    }
-
-    var body: some View {
-        HStack(spacing: 4) {
-            TextField(title, value: hours, format: .number.precision(.fractionLength(0...1)))
-                .labelsHidden()
-                .multilineTextAlignment(.trailing)
-                .frame(width: 48)
-                .textFieldStyle(.roundedBorder)
-            Text("시간")
-            Stepper(title, value: hours, in: 0...maxHours, step: 0.5)
-                .labelsHidden()
-        }
     }
 }
 
@@ -156,34 +85,12 @@ private struct CategoryRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Menu {
-                ForEach(CategorySymbols.all, id: \.self) { symbol in
-                    Button { category.symbol = symbol } label: { Image(systemName: symbol) }
-                }
-            } label: {
-                Image(systemName: category.symbol).foregroundStyle(category.color)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("아이콘")
+            SymbolPickerButton(category: category)
 
             TextField("이름", text: $category.name)
                 .textFieldStyle(.roundedBorder)
 
-            Menu {
-                ForEach(CategoryPalette.names, id: \.self) { name in
-                    Button {
-                        category.colorName = name
-                    } label: {
-                        Label(name, systemImage: "circle.fill")
-                    }
-                }
-            } label: {
-                Circle().fill(category.color).frame(width: 14, height: 14)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("색")
+            ColorPickerButton(category: category)
 
             Toggle("숨기기", isOn: $category.isArchived)
                 .toggleStyle(.checkbox)
@@ -197,6 +104,91 @@ private struct CategoryRow: View {
             }
         }
         .opacity(category.isArchived ? 0.5 : 1)
+    }
+}
+
+/// 누르면 옆에 아이콘 목록이 격자로 뜬다
+private struct SymbolPickerButton: View {
+    @Bindable var category: TaskCategory
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented = true
+        } label: {
+            Image(systemName: category.symbol)
+                .foregroundStyle(category.color)
+                .frame(width: 22, height: 22)
+        }
+        .buttonStyle(.bordered)
+        .help("아이콘 바꾸기")
+        .popover(isPresented: $isPresented, arrowEdge: .trailing) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("아이콘").font(.headline)
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(34), spacing: 6), count: 6), spacing: 6) {
+                    ForEach(CategorySymbols.all, id: \.self) { symbol in
+                        Button {
+                            category.symbol = symbol
+                            isPresented = false
+                        } label: {
+                            Image(systemName: symbol)
+                                .font(.title3)
+                                .frame(width: 34, height: 34)
+                                .foregroundStyle(symbol == category.symbol ? Color.white : category.color)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(symbol == category.symbol ? category.color : Color.secondary.opacity(0.1))
+                                )
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(12)
+        }
+    }
+}
+
+/// 누르면 옆에 색 목록이 뜬다
+private struct ColorPickerButton: View {
+    @Bindable var category: TaskCategory
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented = true
+        } label: {
+            Circle().fill(category.color).frame(width: 16, height: 16)
+        }
+        .buttonStyle(.bordered)
+        .help("색 바꾸기")
+        .popover(isPresented: $isPresented, arrowEdge: .trailing) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("색").font(.headline)
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(28), spacing: 8), count: 6), spacing: 8) {
+                    ForEach(CategoryPalette.names, id: \.self) { name in
+                        Button {
+                            category.colorName = name
+                            isPresented = false
+                        } label: {
+                            Circle()
+                                .fill(CategoryPalette.color(name))
+                                .frame(width: 24, height: 24)
+                                .overlay {
+                                    if name == category.colorName {
+                                        Image(systemName: "checkmark").font(.caption.bold()).foregroundStyle(.white)
+                                    }
+                                }
+                                .frame(width: 28, height: 28)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(12)
+        }
     }
 }
 

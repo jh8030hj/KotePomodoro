@@ -131,3 +131,30 @@ struct NumberField: View {
         )
     }
 }
+
+/// 시간 단위(0.5시간 간격)로 입력하고 분으로 저장하는 칸
+struct HoursField: View {
+    let title: String
+    @Binding var minutes: Int
+    var maxHours: Double = 80
+
+    private var hours: Binding<Double> {
+        Binding(
+            get: { Double(minutes) / 60 },
+            set: { minutes = Int((min(max($0, 0), maxHours) * 60).rounded()) }
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            TextField(title, value: hours, format: .number.precision(.fractionLength(0...1)))
+                .labelsHidden()
+                .multilineTextAlignment(.trailing)
+                .frame(width: 44)
+                .textFieldStyle(.roundedBorder)
+            Text("시간")
+            Stepper(title, value: hours, in: 0...maxHours, step: 0.5)
+                .labelsHidden()
+        }
+    }
+}
